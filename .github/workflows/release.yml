@@ -42,4 +42,6 @@ jobs:
             --title "Tora ${tag}" \
             --generate-notes \
             "dist/Tora-${tag}-macos.zip" \
-            "dist/Tora-${tag}-macos.zip.sha256"
+            "dist/Tora-${tag}-macos.zip.sha256" \
+            "dist/Tora-${tag}-macos.dmg" \
+            "dist/Tora-${tag}-macos.dmg.sha256"

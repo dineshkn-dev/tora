@@ -91,4 +91,14 @@ mkdir -p "$dist"
 (cd "$dist" && zip -qry "Tora-${version}-macos.zip" "Tora.app")
 shasum -a 256 "$dist/Tora-${version}-macos.zip" > "$dist/Tora-${version}-macos.zip.sha256"
 
+echo "Creating DMG installer..."
+dmg_temp=$(mktemp -d)
+cp -R "$app" "$dmg_temp/"
+ln -s /Applications "$dmg_temp/Applications"
+rm -f "$dist/Tora-${version}-macos.dmg"
+hdiutil create -volname "Tora" -srcfolder "$dmg_temp" -ov -format UDZO "$dist/Tora-${version}-macos.dmg" >/dev/null
+rm -rf "$dmg_temp"
+shasum -a 256 "$dist/Tora-${version}-macos.dmg" > "$dist/Tora-${version}-macos.dmg.sha256"
+
 echo "$dist/Tora-${version}-macos.zip"
+echo "$dist/Tora-${version}-macos.dmg"

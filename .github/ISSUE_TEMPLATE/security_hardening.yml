@@ -1,0 +1,17 @@
+name: Security hardening
+description: Propose a safety improvement.
+title: "[Security]: "
+labels: ["security", "triage"]
+body:
+  - type: textarea
+    id: risk
+    attributes:
+      label: Risk
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed mitigation
+    validations:
+      required: true

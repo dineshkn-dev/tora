@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to release
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build release
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        timeout-minutes: 2
+        with:
+          ref: ${{ inputs.tag || github.ref }}
+      - name: Install libtorrent
+        timeout-minutes: 8
+        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install libtorrent-rasterbar
+      - name: Package app
+        timeout-minutes: 12
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" Scripts/package-app.sh "$tag"
+      - name: Create GitHub Release
+        timeout-minutes: 3
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          gh release create "$tag" \
+            --title "Tora ${tag}" \
+            --generate-notes \
+            "dist/Tora-${tag}-macos.zip" \
+            "dist/Tora-${tag}-macos.zip.sha256"

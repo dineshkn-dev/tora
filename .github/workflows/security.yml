@@ -1,0 +1,31 @@
+name: Security
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: security-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  codeql:
+    name: CodeQL
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+        timeout-minutes: 2
+      - uses: github/codeql-action/init@v4
+        timeout-minutes: 5
+        with:
+          languages: swift, c-cpp
+          queries: security-and-quality
+      - name: Build
+        timeout-minutes: 8
+        run: swift build
+      - uses: github/codeql-action/analyze@v4
+        timeout-minutes: 7

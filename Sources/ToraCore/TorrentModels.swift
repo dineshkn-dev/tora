@@ -45,11 +45,18 @@ public struct AddTorrentOptions: Equatable, Sendable, Codable {
     public let downloadDirectory: URL
     public let selectedFileIndexes: Set<Int>
     public let startPaused: Bool
+    public let fetchMetadataOnly: Bool
 
-    public init(downloadDirectory: URL, selectedFileIndexes: Set<Int>, startPaused: Bool) {
+    public init(
+        downloadDirectory: URL,
+        selectedFileIndexes: Set<Int>,
+        startPaused: Bool,
+        fetchMetadataOnly: Bool = false
+    ) {
         self.downloadDirectory = downloadDirectory
         self.selectedFileIndexes = selectedFileIndexes
         self.startPaused = startPaused
+        self.fetchMetadataOnly = fetchMetadataOnly
     }
 }
 
@@ -62,6 +69,9 @@ public struct TorrentSnapshot: Equatable, Sendable {
     public let uploadRate: Int64
     public let totalWanted: Int64
     public let totalDone: Int64
+    public let totalUploaded: Int64
+    public let seedingSeconds: Int
+    public let hasMetadata: Bool
 
     public init(
         id: TorrentID,
@@ -71,7 +81,10 @@ public struct TorrentSnapshot: Equatable, Sendable {
         downloadRate: Int64,
         uploadRate: Int64,
         totalWanted: Int64,
-        totalDone: Int64
+        totalDone: Int64,
+        totalUploaded: Int64 = 0,
+        seedingSeconds: Int = 0,
+        hasMetadata: Bool = true
     ) {
         self.id = id
         self.name = name
@@ -81,6 +94,14 @@ public struct TorrentSnapshot: Equatable, Sendable {
         self.uploadRate = uploadRate
         self.totalWanted = totalWanted
         self.totalDone = totalDone
+        self.totalUploaded = totalUploaded
+        self.seedingSeconds = seedingSeconds
+        self.hasMetadata = hasMetadata
+    }
+
+    public var seedRatio: Double {
+        guard totalDone > 0 else { return 0 }
+        return Double(totalUploaded) / Double(totalDone)
     }
 }
 

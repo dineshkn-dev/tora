@@ -13,6 +13,9 @@ public struct TorrentSessionSettings: Codable, Equatable, Sendable {
     public var maxUploads: Int
     public var downloadRateLimitBytesPerSecond: Int?
     public var uploadRateLimitBytesPerSecond: Int?
+    public var seedRatioLimitPercent: Int?
+    public var seedTimeLimitSeconds: Int?
+    public var seedTimeRatioLimitPercent: Int?
 
     public static let secureDefault = TorrentSessionSettings(
         enableDHT: false,
@@ -26,7 +29,10 @@ public struct TorrentSessionSettings: Codable, Equatable, Sendable {
         maxConnections: 80,
         maxUploads: 20,
         downloadRateLimitBytesPerSecond: nil,
-        uploadRateLimitBytesPerSecond: nil
+        uploadRateLimitBytesPerSecond: nil,
+        seedRatioLimitPercent: 200,
+        seedTimeLimitSeconds: nil,
+        seedTimeRatioLimitPercent: nil
     )
 }
 

@@ -25,6 +25,8 @@ final class SettingsStoreTests: XCTestCase {
         var settings = TorrentSessionSettings.secureDefault
         settings.enableDHT = true
         settings.encryptionPolicy = .forced
+        settings.seedRatioLimitPercent = 150
+        settings.seedTimeLimitSeconds = 3_600
 
         try store.save(settings)
 

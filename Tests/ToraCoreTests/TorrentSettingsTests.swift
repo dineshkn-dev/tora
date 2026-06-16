@@ -11,5 +11,8 @@ final class TorrentSettingsTests: XCTestCase {
         XCTAssertFalse(settings.enableNATPMP)
         XCTAssertFalse(settings.enablePeerExchange)
         XCTAssertEqual(settings.encryptionPolicy, .enabled)
+        XCTAssertEqual(settings.seedRatioLimitPercent, 200)
+        XCTAssertNil(settings.seedTimeLimitSeconds)
+        XCTAssertNil(settings.seedTimeRatioLimitPercent)
     }
 }

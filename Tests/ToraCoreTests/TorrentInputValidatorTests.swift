@@ -63,5 +63,14 @@ final class TorrentInputValidatorTests: XCTestCase {
             pending,
             options: AddTorrentOptions(downloadDirectory: downloadDirectory, selectedFileIndexes: [], startPaused: false)
         ))
+        XCTAssertNoThrow(try validator.validate(
+            pending,
+            options: AddTorrentOptions(
+                downloadDirectory: downloadDirectory,
+                selectedFileIndexes: [],
+                startPaused: false,
+                fetchMetadataOnly: true
+            )
+        ))
     }
 }

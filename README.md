@@ -22,6 +22,26 @@ swift test
 swift run Tora
 ```
 
+## Local commands
+
+```sh
+Commands/dev.sh
+Commands/prod.sh
+Commands/test.sh
+Commands/watch.sh
+```
+
+`dev.sh` runs Tora from SwiftPM. `prod.sh` builds a local `.app`, clears quarantine if needed, and opens it. `test.sh` runs the fast test suite and a libtorrent-enabled build when libtorrent is installed. `watch.sh` rebuilds and relaunches Tora when source files change.
+
+Finder-friendly launchers are also available:
+
+```text
+Commands/Dev.command
+Commands/Prod.command
+Commands/Test.command
+Commands/Watch.command
+```
+
 See [BUILDING.md](BUILDING.md) for libtorrent-enabled builds. CI intentionally runs the fail-closed test suite only; release builds verify libtorrent linkage.
 
 ## Local git automation

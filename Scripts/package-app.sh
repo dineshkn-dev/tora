@@ -22,6 +22,7 @@ fi
 
 TORA_LIBTORRENT_PREFIX="$TORA_LIBTORRENT_PREFIX" swift build -c "$configuration"
 cp "$root/.build/$configuration/Tora" "$macos/Tora"
+cp "$root/Sources/ToraApp/AppIcon.icns" "$resources/AppIcon.icns"
 
 rewrite_dependencies() {
   local binary="$1"
@@ -65,6 +66,7 @@ cat > "$contents/Info.plist" <<PLIST
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>${version#v}</string>
   <key>CFBundleVersion</key><string>${version#v}</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
 </dict>
@@ -76,6 +78,13 @@ if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
     codesign --force --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$dylib"
   done
   codesign --force --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$app"
+else
+  echo "Ad-hoc signing frameworks for local run..."
+  find "$frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
+    codesign --force -s - "$dylib"
+  done
+  echo "Ad-hoc signing app bundle..."
+  codesign --force -s - "$app"
 fi
 
 mkdir -p "$dist"

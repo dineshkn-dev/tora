@@ -24,9 +24,9 @@ final class LibtorrentBridgeFixtureTests: XCTestCase {
         let client = TORLibtorrentClient(config: config, error: nil)
 
         let pending = try client.inspectTorrentFile(at: torrentURL)
-        XCTAssertEqual(pending.name, "empty.txt")
+        XCTAssertEqual(pending.name, "one-byte.txt")
         XCTAssertEqual(pending.files.count, 1)
-        XCTAssertEqual(pending.files.first?.path, "empty.txt")
+        XCTAssertEqual(pending.files.first?.path, "one-byte.txt")
     }
 
     private static func decodeHex(_ hex: String) throws -> Data {

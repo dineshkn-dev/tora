@@ -7,12 +7,16 @@ public protocol TorrentServiceProtocol: Sendable {
     func inspectTorrentFile(_ url: URL) async throws -> PendingTorrent
     func inspectMagnet(_ magnet: String) async throws -> PendingTorrent
     func addTorrent(_ pending: PendingTorrent, options: AddTorrentOptions) async throws -> TorrentID
+    func metadataForTorrent(_ id: TorrentID, source: TorrentSource) async throws -> PendingTorrent?
+    func setFileSelectionAndStart(_ id: TorrentID, selectedFileIndexes: Set<Int>, startPaused: Bool) async throws
     func pauseTorrent(_ id: TorrentID) async throws
     func resumeTorrent(_ id: TorrentID) async throws
+    func fetchMetadata(_ id: TorrentID) async throws
     func removeTorrent(_ id: TorrentID, mode: RemoveMode) async throws
     func torrents() async -> [TorrentSnapshot]
     func events() -> AsyncStream<TorrentEvent>
     func drainEvents() async -> [TorrentEvent]
+    func updateSettings(_ settings: TorrentSessionSettings) async throws
 }
 
 public protocol TorrentMetadataStoring: Sendable {
@@ -25,7 +29,7 @@ public actor TorrentService: TorrentServiceProtocol {
     private let pathPolicy: DownloadPathPolicy
     private let magnetValidator: MagnetValidator
     private let inputValidator: TorrentInputValidator
-    private let settings: TorrentSessionSettings
+    private var settings: TorrentSessionSettings
     private let metadataStore: (any TorrentMetadataStoring)?
     private let deletionPolicy: DeletionPolicy?
     private let resumeDataDirectory: URL?
@@ -70,14 +74,28 @@ public actor TorrentService: TorrentServiceProtocol {
             request.pendingTorrent = pending.bridgeModel()
             request.sessionConfig = settings.bridgeConfig(sessionStateURL: sessionStateURL)
             request.downloadDirectory = record.downloadDirectory
-            request.selectedFileIndexes = IndexSet(record.selectedFileIndexes)
-            request.startPaused = true
+        request.selectedFileIndexes = IndexSet(record.selectedFileIndexes)
+        request.startPaused = true
+        request.fetchMetadataOnly = false
             if let resumeDataDirectory {
                 request.resumeDataURL = resumeDataDirectory
                     .appendingPathComponent(record.id.rawValue, isDirectory: false)
                     .appendingPathExtension("fastresume")
             }
-            _ = try? client.addTorrent(request)
+            if let restoredID = try? client.addTorrent(request) {
+                let torrentID = TorrentID(rawValue: restoredID)
+                if torrentID != record.id {
+                    try? await metadataStore?.remove(id: record.id)
+                    try? await metadataStore?.upsert(TorrentRecord(
+                        id: torrentID,
+                        name: record.name,
+                        source: record.source,
+                        downloadDirectory: record.downloadDirectory,
+                        selectedFileIndexes: record.selectedFileIndexes,
+                        createdAt: record.createdAt
+                    ))
+                }
+            }
         }
     }
 
@@ -103,9 +121,21 @@ public actor TorrentService: TorrentServiceProtocol {
         let request = TORAddTorrentRequest()
         request.pendingTorrent = pending.bridgeModel()
         request.sessionConfig = settings.bridgeConfig(sessionStateURL: sessionStateURL)
-        request.downloadDirectory = options.downloadDirectory
+        if options.fetchMetadataOnly {
+            let metadataFetchDirectory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ToraMetadataFetch", isDirectory: true)
+            try FileManager.default.createDirectory(
+                at: metadataFetchDirectory,
+                withIntermediateDirectories: true,
+                attributes: nil
+            )
+            request.downloadDirectory = metadataFetchDirectory
+        } else {
+            request.downloadDirectory = options.downloadDirectory
+        }
         request.selectedFileIndexes = IndexSet(options.selectedFileIndexes)
         request.startPaused = options.startPaused
+        request.fetchMetadataOnly = options.fetchMetadataOnly
         if let resumeDataDirectory, let infoHash = pending.infoHash {
             request.resumeDataURL = resumeDataDirectory
                 .appendingPathComponent(infoHash, isDirectory: false)
@@ -114,6 +144,9 @@ public actor TorrentService: TorrentServiceProtocol {
 
         let id = try client.addTorrent(request)
         let torrentID = TorrentID(rawValue: id)
+        if options.fetchMetadataOnly {
+            return torrentID
+        }
         try await metadataStore?.upsert(TorrentRecord(
             id: torrentID,
             name: pending.name,
@@ -124,12 +157,43 @@ public actor TorrentService: TorrentServiceProtocol {
         return torrentID
     }
 
+    public func metadataForTorrent(_ id: TorrentID, source: TorrentSource) async throws -> PendingTorrent? {
+        (try? client.metadata(forTorrent: id.rawValue))?.coreModel(source: source)
+    }
+
+    public func setFileSelectionAndStart(_ id: TorrentID, selectedFileIndexes: Set<Int>, startPaused: Bool) async throws {
+        let records = try await metadataStore?.load() ?? []
+        guard let record = records.first(where: { $0.id == id }) else {
+            throw TorrentServiceError.missingMetadataForSelection
+        }
+        try client.setSelectedFileIndexes(
+            IndexSet(selectedFileIndexes),
+            forTorrent: id.rawValue,
+            startPaused: startPaused
+        )
+        try await metadataStore?.upsert(TorrentRecord(
+            id: record.id,
+            name: record.name,
+            source: record.source,
+            downloadDirectory: record.downloadDirectory,
+            selectedFileIndexes: selectedFileIndexes,
+            createdAt: record.createdAt
+        ))
+    }
+
     public func pauseTorrent(_ id: TorrentID) async throws {
         try client.pauseTorrent(id.rawValue)
     }
 
     public func resumeTorrent(_ id: TorrentID) async throws {
         try client.resumeTorrent(id.rawValue)
+    }
+
+    public func fetchMetadata(_ id: TorrentID) async throws {
+        guard settings.enableDHT else {
+            throw TorrentServiceError.dhtRequiredForMagnetMetadata
+        }
+        try client.fetchMetadata(forTorrent: id.rawValue)
     }
 
     public func removeTorrent(_ id: TorrentID, mode: RemoveMode) async throws {
@@ -139,7 +203,13 @@ public actor TorrentService: TorrentServiceProtocol {
             }
             try deletionPolicy?.validateDeletionRoot(record.downloadDirectory)
         }
-        try client.removeTorrent(id.rawValue, deleteData: mode == .removeTorrentAndDownloadedData)
+        do {
+            try client.removeTorrent(id.rawValue, deleteData: mode == .removeTorrentAndDownloadedData)
+        } catch {
+            guard mode == .removeTorrentOnly, error.localizedDescription == "Torrent not found." else {
+                throw error
+            }
+        }
         try await metadataStore?.remove(id: id)
     }
 
@@ -156,6 +226,11 @@ public actor TorrentService: TorrentServiceProtocol {
     public func drainEvents() async -> [TorrentEvent] {
         guard let resumeDataDirectory else { return [] }
         return client.drainEventsSavingResumeData(toDirectory: resumeDataDirectory).compactMap(TorrentEvent.init(bridgeEvent:))
+    }
+
+    public func updateSettings(_ settings: TorrentSessionSettings) async throws {
+        try client.apply(settings.bridgeConfig(sessionStateURL: sessionStateURL))
+        self.settings = settings
     }
 }
 
@@ -183,11 +258,15 @@ public actor MockTorrentService: TorrentServiceProtocol {
         TorrentID(rawValue: UUID().uuidString)
     }
 
+    public func metadataForTorrent(_ id: TorrentID, source: TorrentSource) async throws -> PendingTorrent? { nil }
+    public func setFileSelectionAndStart(_ id: TorrentID, selectedFileIndexes: Set<Int>, startPaused: Bool) async throws {}
     public func pauseTorrent(_ id: TorrentID) async throws {}
     public func resumeTorrent(_ id: TorrentID) async throws {}
+    public func fetchMetadata(_ id: TorrentID) async throws {}
     public func removeTorrent(_ id: TorrentID, mode: RemoveMode) async throws {}
     public func torrents() async -> [TorrentSnapshot] { [] }
     public func drainEvents() async -> [TorrentEvent] { [] }
+    public func updateSettings(_ settings: TorrentSessionSettings) async throws {}
 
     public nonisolated func events() -> AsyncStream<TorrentEvent> {
         AsyncStream { continuation in
@@ -200,6 +279,8 @@ public enum TorrentServiceError: LocalizedError, Equatable {
     case bridgeNotConfigured
     case notImplemented
     case missingMetadataForDeletion
+    case missingMetadataForSelection
+    case dhtRequiredForMagnetMetadata
 
     public var errorDescription: String? {
         switch self {
@@ -209,6 +290,10 @@ public enum TorrentServiceError: LocalizedError, Equatable {
             "This torrent operation is not implemented yet."
         case .missingMetadataForDeletion:
             "Refusing to delete downloaded data because torrent metadata is missing."
+        case .missingMetadataForSelection:
+            "Cannot start this torrent because its saved metadata record is missing."
+        case .dhtRequiredForMagnetMetadata:
+            "DHT is disabled. Enable DHT to fetch trackerless magnet metadata."
         }
     }
 }
@@ -228,6 +313,9 @@ private extension TorrentSessionSettings {
         config.maxUploads = maxUploads
         config.downloadRateLimitBytesPerSecond = downloadRateLimitBytesPerSecond ?? 0
         config.uploadRateLimitBytesPerSecond = uploadRateLimitBytesPerSecond ?? 0
+        config.seedRatioLimitPercent = seedRatioLimitPercent ?? 0
+        config.seedTimeLimitSeconds = seedTimeLimitSeconds ?? 0
+        config.seedTimeRatioLimitPercent = seedTimeRatioLimitPercent ?? 0
         config.sessionStateURL = sessionStateURL
         return config
     }
@@ -270,7 +358,10 @@ private extension TorrentSnapshot {
             downloadRate: bridgeStatus.downloadRate,
             uploadRate: bridgeStatus.uploadRate,
             totalWanted: bridgeStatus.totalWanted,
-            totalDone: bridgeStatus.totalDone
+            totalDone: bridgeStatus.totalDone,
+            totalUploaded: bridgeStatus.totalUploaded,
+            seedingSeconds: bridgeStatus.seedingSeconds,
+            hasMetadata: bridgeStatus.hasMetadata
         )
     }
 }

@@ -21,6 +21,9 @@ typedef NS_ENUM(NSInteger, TOREncryptionPolicy) {
 @property(nonatomic) NSInteger maxUploads;
 @property(nonatomic) NSInteger downloadRateLimitBytesPerSecond;
 @property(nonatomic) NSInteger uploadRateLimitBytesPerSecond;
+@property(nonatomic) NSInteger seedRatioLimitPercent;
+@property(nonatomic) NSInteger seedTimeLimitSeconds;
+@property(nonatomic) NSInteger seedTimeRatioLimitPercent;
 @property(nonatomic, copy, nullable) NSURL *sessionStateURL;
 @end
 
@@ -45,6 +48,7 @@ typedef NS_ENUM(NSInteger, TOREncryptionPolicy) {
 @property(nonatomic, copy) NSIndexSet *selectedFileIndexes;
 @property(nonatomic) BOOL startPaused;
 @property(nonatomic, copy, nullable) NSURL *resumeDataURL;
+@property(nonatomic) BOOL fetchMetadataOnly;
 @end
 
 typedef NS_ENUM(NSInteger, TORTorrentEventKind) {
@@ -69,15 +73,22 @@ typedef NS_ENUM(NSInteger, TORTorrentEventKind) {
 @property(nonatomic) int64_t uploadRate;
 @property(nonatomic) int64_t totalWanted;
 @property(nonatomic) int64_t totalDone;
+@property(nonatomic) int64_t totalUploaded;
+@property(nonatomic) NSInteger seedingSeconds;
+@property(nonatomic) BOOL hasMetadata;
 @end
 
 @interface TORLibtorrentClient : NSObject
 - (instancetype)initWithConfig:(TORSessionConfig *)config error:(NSError **)error;
+- (BOOL)applyConfig:(TORSessionConfig *)config error:(NSError **)error;
 - (TORPendingTorrent *_Nullable)inspectTorrentFileAtURL:(NSURL *)url error:(NSError **)error;
 - (TORPendingTorrent *_Nullable)inspectMagnet:(NSString *)magnet error:(NSError **)error;
 - (NSString *_Nullable)addTorrent:(TORAddTorrentRequest *)request error:(NSError **)error;
+- (TORPendingTorrent *_Nullable)metadataForTorrent:(NSString *)torrentID error:(NSError **)error;
 - (BOOL)pauseTorrent:(NSString *)torrentID error:(NSError **)error;
 - (BOOL)resumeTorrent:(NSString *)torrentID error:(NSError **)error;
+- (BOOL)fetchMetadataForTorrent:(NSString *)torrentID error:(NSError **)error;
+- (BOOL)setSelectedFileIndexes:(NSIndexSet *)selectedFileIndexes forTorrent:(NSString *)torrentID startPaused:(BOOL)startPaused error:(NSError **)error;
 - (BOOL)removeTorrent:(NSString *)torrentID deleteData:(BOOL)deleteData error:(NSError **)error;
 - (NSArray<TORTorrentStatus *> *)torrentStatuses;
 - (NSArray<TORTorrentEvent *> *)drainEventsSavingResumeDataToDirectory:(NSURL *)directory;

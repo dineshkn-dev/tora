@@ -31,6 +31,7 @@ let package = Package(
     ],
     products: [
         .executable(name: "Tora", targets: ["ToraApp"]),
+        .executable(name: "ToraDebug", targets: ["ToraDebug"]),
         .library(name: "ToraCore", targets: ["ToraCore"]),
         .library(name: "ToraPersistence", targets: ["ToraPersistence"]),
         .library(name: "ToraLibtorrentBridge", targets: ["ToraLibtorrentBridge"])
@@ -38,7 +39,12 @@ let package = Package(
     targets: [
         .executableTarget(
             name: "ToraApp",
-            dependencies: ["ToraUI", "ToraCore", "ToraPersistence"]
+            dependencies: ["ToraUI", "ToraCore", "ToraPersistence"],
+            exclude: ["AppIcon.icns"]
+        ),
+        .executableTarget(
+            name: "ToraDebug",
+            dependencies: ["ToraCore"]
         ),
         .target(
             name: "ToraUI",

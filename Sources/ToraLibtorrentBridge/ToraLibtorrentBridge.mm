@@ -18,10 +18,14 @@
 #import <libtorrent/error_code.hpp>
 #import <libtorrent/file_storage.hpp>
 #import <libtorrent/info_hash.hpp>
+#import <libtorrent/fingerprint.hpp>
+#import <cstdio>
 #import <memory>
 #import <mutex>
+#import <sstream>
 #import <string>
 #import <unordered_map>
+#import <unordered_set>
 #import <vector>
 #else
 #define TORA_HAS_LIBTORRENT 0
@@ -72,20 +76,30 @@ static std::string TORStdStringFromURLPath(NSURL *url) {
 
 static libtorrent::settings_pack TORSettingsPack(TORSessionConfig *config) {
     libtorrent::settings_pack settings;
+    settings.set_str(libtorrent::settings_pack::user_agent, "Tora/0.1 libtorrent");
+    settings.set_str(libtorrent::settings_pack::peer_fingerprint, libtorrent::generate_fingerprint("TR", 0, 1, 0, 0));
     settings.set_bool(libtorrent::settings_pack::enable_dht, config.enableDHT);
+    settings.set_str(
+        libtorrent::settings_pack::dht_bootstrap_nodes,
+        "router.bittorrent.com:6881,dht.transmissionbt.com:6881,router.utorrent.com:6881"
+    );
     settings.set_bool(libtorrent::settings_pack::enable_lsd, config.enableLSD);
     settings.set_bool(libtorrent::settings_pack::enable_upnp, config.enableUPnP);
     settings.set_bool(libtorrent::settings_pack::enable_natpmp, config.enableNATPMP);
     settings.set_bool(libtorrent::settings_pack::listen_system_port_fallback, false);
+    auto listenPort = config.listenPortStart;
     settings.set_str(
         libtorrent::settings_pack::listen_interfaces,
-        "0.0.0.0:" + std::to_string(config.listenPortStart) + "-" + std::to_string(config.listenPortEnd)
+        "0.0.0.0:" + std::to_string(listenPort) + ",[::]:" + std::to_string(listenPort)
     );
     settings.set_int(
         libtorrent::settings_pack::alert_mask,
         libtorrent::alert_category::error
         | libtorrent::alert_category::status
         | libtorrent::alert_category::storage
+        | libtorrent::alert_category::tracker
+        | libtorrent::alert_category::dht
+        | libtorrent::alert_category::connect
     );
     if (config.maxConnections > 0) {
         settings.set_int(libtorrent::settings_pack::connections_limit, static_cast<int>(config.maxConnections));
@@ -95,6 +109,15 @@ static libtorrent::settings_pack TORSettingsPack(TORSessionConfig *config) {
     }
     if (config.downloadRateLimitBytesPerSecond > 0) {
         settings.set_int(libtorrent::settings_pack::download_rate_limit, static_cast<int>(config.downloadRateLimitBytesPerSecond));
+    }
+    if (config.seedRatioLimitPercent > 0) {
+        settings.set_int(libtorrent::settings_pack::share_ratio_limit, static_cast<int>(config.seedRatioLimitPercent));
+    }
+    if (config.seedTimeLimitSeconds > 0) {
+        settings.set_int(libtorrent::settings_pack::seed_time_limit, static_cast<int>(config.seedTimeLimitSeconds));
+    }
+    if (config.seedTimeRatioLimitPercent > 0) {
+        settings.set_int(libtorrent::settings_pack::seed_time_ratio_limit, static_cast<int>(config.seedTimeRatioLimitPercent));
     }
 
     switch (config.encryptionPolicy) {
@@ -115,10 +138,26 @@ static libtorrent::settings_pack TORSettingsPack(TORSessionConfig *config) {
     return settings;
 }
 
+static void TORAddDHTBootstrapNodes(libtorrent::add_torrent_params& params) {
+    params.dht_nodes.push_back({"router.bittorrent.com", 6881});
+    params.dht_nodes.push_back({"dht.transmissionbt.com", 6881});
+    params.dht_nodes.push_back({"router.utorrent.com", 6881});
+}
+
+static std::string TORInfoHashKey(libtorrent::info_hash_t const& hashes) {
+    std::ostringstream stream;
+    if (hashes.has_v1()) {
+        stream << hashes.v1;
+    } else if (hashes.has_v2()) {
+        stream << hashes.get(libtorrent::protocol_version::V2);
+    }
+    return stream.str();
+}
+
 static TORPendingTorrent *TORPendingFromTorrentInfo(libtorrent::torrent_info const& info) {
     TORPendingTorrent *pending = [[TORPendingTorrent alloc] init];
     pending.name = TORString(info.name());
-    pending.infoHash = TORString(info.info_hashes().get_best().to_string());
+    pending.infoHash = TORString(TORInfoHashKey(info.info_hashes()));
 
     NSMutableArray<TORTorrentFile *> *files = [[NSMutableArray alloc] init];
     const libtorrent::file_storage &storage = info.files();
@@ -156,11 +195,46 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     NSURL *_sessionStateURL;
     std::mutex _mutex;
     std::unordered_map<std::string, libtorrent::torrent_handle> _handles;
+    std::unordered_set<std::string> _metadataPrefetches;
+    std::unordered_map<std::string, std::shared_ptr<libtorrent::torrent_info>> _metadataCache;
 }
+#if TORA_HAS_LIBTORRENT
+- (libtorrent::torrent_handle)handleForTorrentIDLocked:(NSString *)torrentID;
+#endif
 @end
 #endif
 
 @implementation TORLibtorrentClient
+
+#if TORA_HAS_LIBTORRENT
+- (libtorrent::torrent_handle)handleForTorrentIDLocked:(NSString *)torrentID {
+    std::string key = TORStdString(torrentID);
+    auto it = _handles.find(key);
+    if (it != _handles.end()) {
+        if (it->second.is_valid()) {
+            return it->second;
+        }
+        _handles.erase(it);
+    }
+
+    if (_session == nullptr) {
+        return libtorrent::torrent_handle();
+    }
+
+    for (libtorrent::torrent_handle const& handle : _session->get_torrents()) {
+        if (!handle.is_valid()) {
+            continue;
+        }
+        std::string currentKey = TORInfoHashKey(handle.info_hashes());
+        _handles[currentKey] = handle;
+        if (currentKey == key) {
+            return handle;
+        }
+    }
+
+    return libtorrent::torrent_handle();
+}
+#endif
 
 - (instancetype)initWithConfig:(TORSessionConfig *)config error:(NSError **)error {
     self = [super init];
@@ -180,6 +254,25 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     }
 #endif
     return self;
+}
+
+- (BOOL)applyConfig:(TORSessionConfig *)config error:(NSError **)error {
+#if TORA_HAS_LIBTORRENT
+    if (_session == nullptr) {
+        if (error != nil) {
+            *error = TORBridgeUnavailableError();
+        }
+        return NO;
+    }
+    std::lock_guard<std::mutex> lock(_mutex);
+    _session->apply_settings(TORSettingsPack(config));
+    return YES;
+#else
+    if (error != nil) {
+        *error = TORBridgeUnavailableError();
+    }
+    return NO;
+#endif
 }
 
 - (TORPendingTorrent *)inspectTorrentFileAtURL:(NSURL *)url error:(NSError **)error {
@@ -226,7 +319,7 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
 
     TORPendingTorrent *pending = [[TORPendingTorrent alloc] init];
     pending.name = params.name.empty() ? @"Magnet Torrent" : TORString(params.name);
-    pending.infoHash = TORString(params.info_hashes.get_best().to_string());
+    pending.infoHash = TORString(TORInfoHashKey(params.info_hashes));
     pending.files = @[];
     pending.magnetLink = magnet;
     return pending;
@@ -267,7 +360,27 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
         }
     }
 
-    if (!loadedResumeData && request.pendingTorrent.torrentFileURL != nil) {
+    std::shared_ptr<libtorrent::torrent_info> cachedInfo;
+    if (!loadedResumeData && request.pendingTorrent.infoHash.length > 0 && !request.fetchMetadataOnly) {
+        std::lock_guard<std::mutex> lock(_mutex);
+        auto cached = _metadataCache.find(TORStdString(request.pendingTorrent.infoHash));
+        if (cached != _metadataCache.end()) {
+            cachedInfo = cached->second;
+        }
+    }
+
+    if (!loadedResumeData && cachedInfo != nullptr) {
+        params.ti = cachedInfo;
+        params.name = cachedInfo->name();
+        params.file_priorities.assign(static_cast<size_t>(cachedInfo->num_files()), libtorrent::dont_download);
+        for (NSUInteger idx = request.selectedFileIndexes.firstIndex;
+             idx != NSNotFound;
+             idx = [request.selectedFileIndexes indexGreaterThanIndex:idx]) {
+            if (idx < params.file_priorities.size()) {
+                params.file_priorities[idx] = libtorrent::default_priority;
+            }
+        }
+    } else if (!loadedResumeData && request.pendingTorrent.torrentFileURL != nil) {
         auto info = std::make_shared<libtorrent::torrent_info>(request.pendingTorrent.torrentFileURL.path.UTF8String, ec);
         if (ec) {
             if (error != nil) {
@@ -294,6 +407,9 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
             return nil;
         }
         params.name = TORStdString(request.pendingTorrent.name);
+        if (request.sessionConfig.enableDHT) {
+            TORAddDHTBootstrapNodes(params);
+        }
     } else {
         if (error != nil) {
             *error = TORBridgeError(@"Pending torrent does not contain a torrent file or magnet link.");
@@ -305,9 +421,17 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     if (!request.sessionConfig.enablePeerExchange) {
         params.flags |= libtorrent::torrent_flags::disable_pex;
     }
-    if (request.startPaused) {
+
+    if (request.fetchMetadataOnly) {
+        params.flags &= ~libtorrent::torrent_flags::auto_managed;
+        params.flags &= ~libtorrent::torrent_flags::paused;
+        params.flags |= libtorrent::torrent_flags::duplicate_is_error;
+    } else if (request.startPaused) {
         params.flags &= ~libtorrent::torrent_flags::auto_managed;
         params.flags |= libtorrent::torrent_flags::paused;
+    } else {
+        params.flags &= ~libtorrent::torrent_flags::auto_managed;
+        params.flags &= ~libtorrent::torrent_flags::paused;
     }
 
     libtorrent::torrent_handle handle;
@@ -320,10 +444,38 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
             }
             return nil;
         }
-        std::string key = handle.info_hashes().get_best().to_string();
+        std::string key = TORInfoHashKey(handle.info_hashes());
         _handles[key] = handle;
+        if (request.fetchMetadataOnly) {
+            _metadataPrefetches.insert(key);
+        }
         return TORString(key);
     }
+#else
+    if (error != nil) {
+        *error = TORBridgeUnavailableError();
+    }
+    return nil;
+#endif
+}
+
+- (TORPendingTorrent *)metadataForTorrent:(NSString *)torrentID error:(NSError **)error {
+#if TORA_HAS_LIBTORRENT
+    std::lock_guard<std::mutex> lock(_mutex);
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
+        if (error != nil) {
+            *error = TORBridgeError(@"Torrent not found.");
+        }
+        return nil;
+    }
+
+    auto info = handle.torrent_file();
+    if (!info) {
+        return nil;
+    }
+
+    return TORPendingFromTorrentInfo(*info);
 #else
     if (error != nil) {
         *error = TORBridgeUnavailableError();
@@ -335,14 +487,14 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
 - (BOOL)pauseTorrent:(NSString *)torrentID error:(NSError **)error {
 #if TORA_HAS_LIBTORRENT
     std::lock_guard<std::mutex> lock(_mutex);
-    auto it = _handles.find(TORStdString(torrentID));
-    if (it == _handles.end() || !it->second.is_valid()) {
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
         if (error != nil) {
             *error = TORBridgeError(@"Torrent not found.");
         }
         return NO;
     }
-    it->second.pause();
+    handle.pause();
     return YES;
 #else
     if (error != nil) {
@@ -355,14 +507,85 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
 - (BOOL)resumeTorrent:(NSString *)torrentID error:(NSError **)error {
 #if TORA_HAS_LIBTORRENT
     std::lock_guard<std::mutex> lock(_mutex);
-    auto it = _handles.find(TORStdString(torrentID));
-    if (it == _handles.end() || !it->second.is_valid()) {
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
         if (error != nil) {
             *error = TORBridgeError(@"Torrent not found.");
         }
         return NO;
     }
-    it->second.resume();
+    handle.resume();
+    return YES;
+#else
+    if (error != nil) {
+        *error = TORBridgeUnavailableError();
+    }
+    return NO;
+#endif
+}
+
+- (BOOL)fetchMetadataForTorrent:(NSString *)torrentID error:(NSError **)error {
+#if TORA_HAS_LIBTORRENT
+    std::lock_guard<std::mutex> lock(_mutex);
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
+        if (error != nil) {
+            *error = TORBridgeError(@"Torrent not found.");
+        }
+        return NO;
+    }
+    handle.unset_flags(libtorrent::torrent_flags::paused | libtorrent::torrent_flags::auto_managed);
+    handle.unset_flags(libtorrent::torrent_flags::upload_mode);
+    handle.unset_flags(libtorrent::torrent_flags::stop_when_ready);
+    handle.unset_flags(libtorrent::torrent_flags::default_dont_download);
+    handle.resume();
+    return YES;
+#else
+    if (error != nil) {
+        *error = TORBridgeUnavailableError();
+    }
+    return NO;
+#endif
+}
+
+- (BOOL)setSelectedFileIndexes:(NSIndexSet *)selectedFileIndexes forTorrent:(NSString *)torrentID startPaused:(BOOL)startPaused error:(NSError **)error {
+#if TORA_HAS_LIBTORRENT
+    std::lock_guard<std::mutex> lock(_mutex);
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
+        if (error != nil) {
+            *error = TORBridgeError(@"Torrent not found.");
+        }
+        return NO;
+    }
+
+    auto info = handle.torrent_file();
+    if (!info) {
+        if (error != nil) {
+            *error = TORBridgeError(@"Torrent metadata is not available yet.");
+        }
+        return NO;
+    }
+
+    for (int index = 0; index < info->num_files(); ++index) {
+        libtorrent::download_priority_t priority = [selectedFileIndexes containsIndex:static_cast<NSUInteger>(index)]
+            ? libtorrent::default_priority
+            : libtorrent::dont_download;
+        handle.file_priority(libtorrent::file_index_t(index), priority);
+    }
+
+    handle.unset_flags(
+        libtorrent::torrent_flags::upload_mode
+        | libtorrent::torrent_flags::stop_when_ready
+        | libtorrent::torrent_flags::default_dont_download
+        | libtorrent::torrent_flags::auto_managed
+    );
+    if (startPaused) {
+        handle.set_flags(libtorrent::torrent_flags::paused);
+    } else {
+        handle.unset_flags(libtorrent::torrent_flags::paused);
+        handle.resume();
+    }
     return YES;
 #else
     if (error != nil) {
@@ -375,8 +598,8 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
 - (BOOL)removeTorrent:(NSString *)torrentID deleteData:(BOOL)deleteData error:(NSError **)error {
 #if TORA_HAS_LIBTORRENT
     std::lock_guard<std::mutex> lock(_mutex);
-    auto it = _handles.find(TORStdString(torrentID));
-    if (it == _handles.end() || !it->second.is_valid()) {
+    libtorrent::torrent_handle handle = [self handleForTorrentIDLocked:torrentID];
+    if (!handle.is_valid()) {
         if (error != nil) {
             *error = TORBridgeError(@"Torrent not found.");
         }
@@ -386,8 +609,8 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     if (deleteData) {
         flags |= libtorrent::session::delete_files;
     }
-    _session->remove_torrent(it->second, flags);
-    _handles.erase(it);
+    _session->remove_torrent(handle, flags);
+    _handles.erase(TORStdString(torrentID));
     return YES;
 #else
     if (error != nil) {
@@ -410,16 +633,39 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
         _session->pop_alerts(&alerts);
     }
 
+    BOOL debugAlerts = [[[NSProcessInfo processInfo] environment][@"TORA_DEBUG_ALERTS"] isEqualToString:@"1"];
     for (libtorrent::alert *alert : alerts) {
+        if (debugAlerts) {
+            std::fprintf(stderr, "libtorrent alert: %s\n", alert->message().c_str());
+        }
         if (auto *metadata = libtorrent::alert_cast<libtorrent::metadata_received_alert>(alert)) {
             libtorrent::torrent_handle handle = metadata->handle;
             if (!handle.is_valid()) {
                 continue;
             }
-            std::string key = handle.info_hashes().get_best().to_string();
+            std::string key = TORInfoHashKey(handle.info_hashes());
+            {
+                std::lock_guard<std::mutex> lock(_mutex);
+                _handles[key] = handle;
+            }
             auto info = handle.torrent_file();
             if (!info) {
                 continue;
+            }
+            bool isPrefetch = false;
+            {
+                std::lock_guard<std::mutex> lock(_mutex);
+                auto prefetch = _metadataPrefetches.find(key);
+                isPrefetch = prefetch != _metadataPrefetches.end();
+                if (isPrefetch) {
+                    _metadataCache[key] = std::make_shared<libtorrent::torrent_info>(*info);
+                    _metadataPrefetches.erase(prefetch);
+                    _handles.erase(key);
+                    _session->remove_torrent(handle, libtorrent::session::delete_files);
+                }
+            }
+            if (!isPrefetch) {
+                handle.pause();
             }
 
             TORTorrentEvent *event = [[TORTorrentEvent alloc] init];
@@ -428,7 +674,7 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
             event.pendingTorrent = TORPendingFromTorrentInfo(*info);
             [events addObject:event];
         } else if (auto *resume = libtorrent::alert_cast<libtorrent::save_resume_data_alert>(alert)) {
-            std::string key = resume->handle.info_hashes().get_best().to_string();
+            std::string key = TORInfoHashKey(resume->handle.info_hashes());
             std::vector<char> buffer = libtorrent::write_resume_data_buf(resume->params);
             NSURL *url = [[directory URLByAppendingPathComponent:TORString(key)] URLByAppendingPathExtension:@"fastresume"];
             NSData *data = [NSData dataWithBytes:buffer.data() length:buffer.size()];
@@ -441,7 +687,7 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
         } else if (auto *failed = libtorrent::alert_cast<libtorrent::save_resume_data_failed_alert>(alert)) {
             TORTorrentEvent *event = [[TORTorrentEvent alloc] init];
             event.kind = TORTorrentEventKindError;
-            event.torrentID = TORString(failed->handle.info_hashes().get_best().to_string());
+            event.torrentID = TORString(TORInfoHashKey(failed->handle.info_hashes()));
             event.message = TORString(failed->message());
             [events addObject:event];
         }
@@ -473,6 +719,9 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
         bridgeStatus.uploadRate = status.upload_payload_rate;
         bridgeStatus.totalWanted = status.total_wanted;
         bridgeStatus.totalDone = status.total_wanted_done;
+        bridgeStatus.totalUploaded = status.all_time_upload;
+        bridgeStatus.seedingSeconds = status.seeding_duration.count();
+        bridgeStatus.hasMetadata = handle.torrent_file() != nullptr;
         [statuses addObject:bridgeStatus];
         ++it;
     }

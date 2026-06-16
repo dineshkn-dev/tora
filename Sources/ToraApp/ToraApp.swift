@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import ToraCore
 import ToraPersistence
 import ToraUI
@@ -6,6 +7,11 @@ import ToraUI
 @main
 struct ToraApp: App {
     @StateObject private var appState = AppState()
+
+    init() {
+        NSApplication.shared.setActivationPolicy(.regular)
+        NSApplication.shared.activate(ignoringOtherApps: true)
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -55,5 +61,6 @@ final class AppState: ObservableObject {
     func start() async {
         try? directories.createRequiredDirectories()
         try? await torrentService.start()
+        await uiState.refresh()
     }
 }

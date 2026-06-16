@@ -11,7 +11,7 @@ public struct TorrentInputValidator: Sendable {
         try pathPolicy.validateDownloadDirectory(options.downloadDirectory)
 
         if pending.files.isEmpty {
-            guard options.startPaused else {
+            guard options.startPaused || options.fetchMetadataOnly else {
                 throw TorrentInputValidationError.metadataRequiredBeforeStart
             }
             return

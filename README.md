@@ -15,6 +15,10 @@
   <img src="https://img.shields.io/badge/engine-libtorrent_2.0-cyan?style=flat-square" alt="Engine: Libtorrent 2.0">
 </p>
 
+<p align="center">
+  <img src="Docs/assets/screenshot.png" width="700" alt="Tora App Interface Dashboard Mockup">
+</p>
+
 ---
 
 ## Status

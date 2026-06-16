@@ -1,64 +1,110 @@
-# Tora
+<p align="center">
+  <img src="Docs/assets/logo.png" width="160" height="160" alt="Tora Logo">
+</p>
 
-Tora is a macOS-first BitTorrent client built with Swift, SwiftUI, and libtorrent-rasterbar.
+<h1 align="center">Tora</h1>
+
+<p align="center">
+  <strong>A premium, security-first, macOS-native BitTorrent client built with Swift, SwiftUI, and libtorrent-rasterbar.</strong>
+</p>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/platform-macOS_14.0%2B-blue?style=flat-square" alt="Platform: macOS 14.0+">
+  <img src="https://img.shields.io/badge/language-Swift_5.10-orange?style=flat-square" alt="Language: Swift 5.10">
+  <img src="https://img.shields.io/badge/license-MIT-green?style=flat-square" alt="License: MIT">
+  <img src="https://img.shields.io/badge/engine-libtorrent_2.0-cyan?style=flat-square" alt="Engine: Libtorrent 2.0">
+</p>
+
+---
 
 ## Status
 
-Early development. The security-first project skeleton, validation layer, bridge boundary, CI, and release automation are in place.
+Tora is currently in early active development. The security-first project skeleton, validation layers, dynamic bridge boundary, CI workflow, and automated production packaging pipelines are fully implemented and ready.
 
-## Security posture
+## Security Posture
 
-- Tora does not implement the BitTorrent protocol manually.
-- `.torrent` files and magnet links are treated as untrusted input.
-- Download paths are validated before any torrent is started.
-- Downloaded files are never opened automatically.
-- A dedicated download directory is used by default: `~/Downloads/Tora`.
-- Libtorrent is isolated behind a small `TorrentService` boundary.
+Unlike generic clients, Tora is built on a fail-closed, secure-by-default architecture:
 
-## Initial build
+* 🔒 **Isolated Engine**: Libtorrent is strictly isolated behind a thin `TorrentService` boundary. No raw handles can escape.
+* 🛡️ **Path Validation**: Download and save paths are recursively validated to prevent filesystem traversals or system directory pollution.
+* 🚫 **No Auto-Opening**: Tora will never automatically open or execute downloaded files.
+* 🔏 **Sandbox Boundary**: The app defaults to a dedicated downloads sandbox folder: `~/Downloads/Tora`.
+* 🔌 **Fail-Closed Connections**: Local network-discovery settings (LPD, UPnP, NAT-PMP) are disabled by default and require explicit review to enable.
 
+---
+
+## Quick Start
+
+### Build Requirements
+* macOS Sonoma (14.0) or newer
+* Xcode 15 / Swift 5.10+
+* Homebrew (for libtorrent engine bindings)
+
+### 1. Development Build (Fail-Closed)
+To run a fast, fail-closed development build without installing external system dependencies:
 ```sh
 swift test
 swift run Tora
 ```
+*Note: In this mode, calls requiring libtorrent will return a safe mock response until linked.*
 
-## Local commands
-
+### 2. Full Build (Libtorrent-Enabled)
+Install libtorrent and build with linked bindings:
 ```sh
-Commands/dev.sh
-Commands/prod.sh
-Commands/test.sh
-Commands/watch.sh
+brew install libtorrent-rasterbar
+TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" swift build
 ```
 
-`dev.sh` runs Tora from SwiftPM. `prod.sh` builds a local `.app`, clears quarantine if needed, and opens it. `test.sh` runs the fast test suite and a libtorrent-enabled build when libtorrent is installed. `watch.sh` rebuilds and relaunches Tora when source files change.
+---
 
-Finder-friendly launchers are also available:
+## Interactive Developer Manual
 
-```text
-Commands/Dev.command
-Commands/Prod.command
-Commands/Test.command
-Commands/Watch.command
-```
+<details>
+<summary><b>🛠️ Local Development Automation Scripts</b></summary>
+<br>
 
-See [BUILDING.md](BUILDING.md) for libtorrent-enabled builds. CI intentionally runs the fail-closed test suite only; release builds verify libtorrent linkage.
+Tora includes shell commands and Finder-friendly shortcuts for key development tasks:
 
-## Local git automation
+| Command | File Path | Description |
+| :--- | :--- | :--- |
+| **Run Dev** | `Commands/dev.sh` | Builds and runs Tora from SwiftPM. |
+| **Build Prod** | `Commands/prod.sh` | Compiles a production `.app`, runs ad-hoc code-signing, and launches it. |
+| **Run Tests** | `Commands/test.sh` | Runs unit tests (with libtorrent-enabled tests if library is installed). |
+| **Watch Files** | `Commands/watch.sh` | Automatically rebuilds and restarts Tora when source files change. |
 
+*Finder Launchers are also available in `Commands/` as `.command` scripts (e.g., `Commands/Prod.command`) for quick double-click launching.*
+</details>
+
+<details>
+<summary><b>⚓ Local Git Automation (Pre-commit / Pre-push Hooks)</b></summary>
+<br>
+
+To set up pre-commit validation (runs unit tests) and pre-push validation (runs full libtorrent build):
 ```sh
 Scripts/install-git-hooks.sh
 ```
+These hooks run automatically to verify code correctness before syncing upstream.
+</details>
 
-The hooks run tests before commits and run the libtorrent-enabled build before pushes when libtorrent is installed.
+<details>
+<summary><b>⚡ Technical Architecture: Libtorrent Bridge</b></summary>
+<br>
 
-## Libtorrent bridge
-
-The bridge builds without libtorrent so core security tests can run on clean machines. To enable the real bridge, install libtorrent-rasterbar and pass its prefix to SwiftPM:
-
-```sh
-brew install libtorrent-rasterbar
-TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" swift test
+Tora isolates unsafe C++ bindings using a structured bridge boundary:
+```mermaid
+graph TD
+    ToraApp[Sources/ToraApp] --> ToraUI[Sources/ToraUI]
+    ToraUI --> ToraCore[Sources/ToraCore]
+    ToraCore --> ToraLibtorrentBridge[Sources/ToraLibtorrentBridge]
+    ToraLibtorrentBridge --> LibtorrentC["libtorrent-rasterbar (C++)"]
 ```
+* **Protocol Isolation**: The Swift app depends exclusively on `TorrentServiceProtocol`.
+* **Zero C++ Leaks**: All raw C++ pointers, standard containers (`std::vector`), and Libtorrent types are fully contained inside `Sources/ToraLibtorrentBridge` to prevent runtime undefined behaviors or memory leaks in Swift code.
+</details>
 
-The Swift app should continue to depend on `TorrentServiceProtocol`; raw libtorrent types must stay inside `ToraLibtorrentBridge`.
+---
+
+## License
+
+Tora is licensed under the [MIT License](LICENSE).
+For security concerns, please refer to our [Security Policy](SECURITY.md).

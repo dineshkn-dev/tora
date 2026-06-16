@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tora — Security-First macOS BitTorrent Client</title>
+  <meta name="description" content="Tora is a beautiful, security-first, macOS-first BitTorrent client built with Swift, SwiftUI, and libtorrent-rasterbar.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Navigation Bar -->
+  <header class="navbar">
+    <div class="navbar-container">
+      <a href="#" class="brand-link">
+        <img src="assets/logo.png" alt="Tora Logo" class="brand-icon">
+        <span class="brand-name">Tora</span>
+      </a>
+      <nav class="nav-menu">
+        <a href="#features">Features</a>
+        <a href="#mockup">Interface</a>
+        <a href="#telemetry">Live Stats</a>
+        <a href="https://github.com/dineshkn-dev/tora" class="github-btn" target="_blank">GitHub</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero-section">
+    <div class="hero-container">
+      <div class="hero-content">
+        <h1 class="hero-title">
+          Security-First. <br>
+          <span class="gradient-text">macOS-Native.</span>
+        </h1>
+        <p class="hero-subtitle">
+          Tora is a premium BitTorrent client built from the ground up for macOS using Swift, SwiftUI, and isolated libtorrent-rasterbar bindings. Designed for performance, safety, and minimalism.
+        </p>
+        <div class="hero-actions">
+          <a href="https://github.com/dineshkn-dev/tora/releases/latest" class="btn-primary">Download for macOS</a>
+          <a href="https://github.com/dineshkn-dev/tora" class="btn-secondary" target="_blank">View Repository</a>
+        </div>
+      </div>
+      <div class="hero-image-wrapper">
+        <div class="glowing-circle"></div>
+        <div class="hero-card">
+          <img src="assets/logo.png" alt="Tora Logo Large" class="hero-logo-img">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section id="features" class="features-section">
+    <div class="section-header">
+      <h2 class="section-title">Engineered for macOS</h2>
+      <p class="section-subtitle">Tora combines premium aesthetics with a bulletproof security architecture.</p>
+    </div>
+    <div class="features-grid">
+      <div class="feature-card">
+        <div class="feature-icon teal-glow">🛡️</div>
+        <h3 class="feature-title">Sandbox Isolated</h3>
+        <p class="feature-desc">All download directories are strictly validated before starting. Torrent payloads can never escape boundaries or write to arbitrary system paths.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon orange-glow">⚡</div>
+        <h3 class="feature-title">Swift & SwiftUI Core</h3>
+        <p class="feature-desc">No heavy Electron wrappers. Tora is ultra-lightweight, energy-efficient, and respects your Mac's battery life with fully native system integration.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon teal-glow">🔒</div>
+        <h3 class="feature-title">Fail-Closed Safety</h3>
+        <p class="feature-desc">Network-discovery defaults are kept strictly off without review. Dynamic library linking is hardened to prevent standard local binary hijacks.</p>
+      </div>
+      <div class="feature-card">
+        <div class="feature-icon orange-glow">⛓️</div>
+        <h3 class="feature-title">Libtorrent Power</h3>
+        <p class="feature-desc">Leverages the industry-standard `libtorrent-rasterbar` engine for robust peer exchange, DHT, encryption, and magnet link handling.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- Mockup Section -->
+  <section id="mockup" class="mockup-section">
+    <div class="section-header">
+      <h2 class="section-title">Premium Minimalist Dashboard</h2>
+      <p class="section-subtitle">A native macOS interface that feels right at home on your desktop.</p>
+    </div>
+    <div class="mockup-window">
+      <div class="window-titlebar">
+        <div class="window-controls">
+          <span class="control-dot close"></span>
+          <span class="control-dot minimize"></span>
+          <span class="control-dot expand"></span>
+        </div>
+        <div class="window-title">Tora — Dashboard</div>
+      </div>
+      <div class="window-content">
+        <img src="assets/screenshot.png" alt="Tora Interface Mockup" class="screenshot-img">
+      </div>
+    </div>
+  </section>
+
+  <!-- Interactive Telemetry Section -->
+  <section id="telemetry" class="telemetry-section">
+    <div class="section-header">
+      <h2 class="section-title">Interactive Live Telemetry</h2>
+      <p class="section-subtitle">Witness the lightweight speed telemetry simulation powered by Tora's engine.</p>
+    </div>
+    <div class="telemetry-container">
+      <div class="telemetry-widget">
+        <div class="widget-header">
+          <div class="torrent-info">
+            <span class="torrent-name">ubuntu-23.10-desktop-amd64.iso</span>
+            <span class="torrent-status">Downloading</span>
+          </div>
+          <div class="peers-counter"><span id="peers-val">452</span> Peers</div>
+        </div>
+        
+        <div class="progress-container">
+          <div class="progress-bar-bg">
+            <div id="progress-val-bar" class="progress-bar-fill" style="width: 68.4%"></div>
+          </div>
+          <div class="progress-text">
+            <span id="progress-text-pct">68.4%</span> of 2.1 GB
+          </div>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-box">
+            <span class="stat-label">Download Speed</span>
+            <span class="stat-value teal-text"><span id="dl-val">12.5</span> MB/s</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Upload Speed</span>
+            <span class="stat-value orange-text"><span id="ul-val">2.1</span> MB/s</span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">Ratio</span>
+            <span class="stat-value"><span id="ratio-val">1.00</span></span>
+          </div>
+          <div class="stat-box">
+            <span class="stat-label">ETA</span>
+            <span class="stat-value" id="eta-val">16:04</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="telemetry-graph-card">
+        <canvas id="telemetryGraph" width="500" height="250"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="footer">
+    <div class="footer-container">
+      <p>&copy; 2026 Tora Project. Built natively for macOS.</p>
+      <div class="footer-links">
+        <a href="https://github.com/dineshkn-dev/tora">GitHub</a>
+        <a href="https://github.com/dineshkn-dev/tora/blob/main/LICENSE">License</a>
+        <a href="https://github.com/dineshkn-dev/tora/blob/main/SECURITY.md">Security</a>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Telemetry Simulation Javascript -->
+  <script>
+    // Stats Simulation Variables
+    let dlSpeed = 12.5;
+    let ulSpeed = 2.1;
+    let progress = 68.4;
+    let peers = 452;
+    let ratio = 1.00;
+    
+    // Canvas Graph Setup
+    const canvas = document.getElementById('telemetryGraph');
+    const ctx = canvas.getContext('2d');
+    const dlHistory = Array(20).fill(12.5);
+    const ulHistory = Array(20).fill(2.1);
+
+    function updateSimulation() {
+      // Small jitter variations
+      dlSpeed = Math.max(8.0, Math.min(20.0, dlSpeed + (Math.random() - 0.5) * 1.5));
+      ulSpeed = Math.max(1.0, Math.min(5.0, ulSpeed + (Math.random() - 0.5) * 0.4));
+      peers = Math.max(430, Math.min(480, peers + Math.floor((Math.random() - 0.5) * 5)));
+      
+      // Update progress
+      progress = Math.min(100.0, progress + (dlSpeed / 2100.0) * 100);
+      if (progress >= 100.0) {
+        progress = 0.0; // Reset loop for demo
+        ratio = 1.00;
+      } else {
+        ratio = 1.00 + (progress / 100) * 0.4;
+      }
+
+      // Update UI text
+      document.getElementById('dl-val').innerText = dlSpeed.toFixed(1);
+      document.getElementById('ul-val').innerText = ulSpeed.toFixed(1);
+      document.getElementById('peers-val').innerText = peers;
+      document.getElementById('progress-text-pct').innerText = progress.toFixed(1) + '%';
+      document.getElementById('progress-val-bar').style.width = progress.toFixed(1) + '%';
+      document.getElementById('ratio-val').innerText = ratio.toFixed(2);
+      
+      // Update ETA
+      const remainingBytes = (2.1 * 1024 * 1024 * 1024) * (1 - progress / 100);
+      const remainingSeconds = remainingBytes / (dlSpeed * 1024 * 1024);
+      const minutes = Math.floor(remainingSeconds / 60);
+      const seconds = Math.floor(remainingSeconds % 60);
+      document.getElementById('eta-val').innerText = `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
+
+      // Update histories for graph
+      dlHistory.push(dlSpeed);
+      dlHistory.shift();
+      ulHistory.push(ulSpeed);
+      ulHistory.shift();
+
+      drawGraph();
+    }
+
+    function drawGraph() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Grid lines
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 5; i++) {
+        const y = (canvas.height / 4) * i;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        ctx.lineTo(canvas.width, y);
+        ctx.stroke();
+      }
+
+      const drawPath = (history, color, maxVal) => {
+        ctx.beginPath();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 3;
+        ctx.lineJoin = 'round';
+        
+        const step = canvas.width / (history.length - 1);
+        for (let i = 0; i < history.length; i++) {
+          const x = i * step;
+          const y = canvas.height - (history[i] / maxVal) * (canvas.height - 40) - 20;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+        
+        // Area under path
+        ctx.lineTo(canvas.width, canvas.height);
+        ctx.lineTo(0, canvas.height);
+        ctx.closePath();
+        const grad = ctx.createLinearGradient(0, 0, 0, canvas.height);
+        grad.addColorStop(0, color.replace('1)', '0.15)'));
+        grad.addColorStop(1, color.replace('1)', '0)'));
+        ctx.fillStyle = grad;
+        ctx.fill();
+      };
+
+      // Draw curves (scaling relative to maximum potential values)
+      drawPath(dlHistory, 'rgba(0, 229, 255, 1)', 25.0);
+      drawPath(ulHistory, 'rgba(255, 109, 0, 1)', 6.0);
+    }
+
+    // Run interval
+    setInterval(updateSimulation, 1000);
+    drawGraph();
+  </script>
+</body>
+</html>

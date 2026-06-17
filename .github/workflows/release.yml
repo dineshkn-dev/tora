@@ -40,9 +40,14 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
+          notes_file=".github/release-notes/${tag}.md"
+          notes_arg=(--generate-notes)
+          if [[ -f "$notes_file" ]]; then
+            notes_arg=(--notes-file "$notes_file")
+          fi
           gh release create "$tag" \
             --title "Tora ${tag}" \
-            --generate-notes \
+            "${notes_arg[@]}" \
             "dist/Tora-${tag}-macos.zip" \
             "dist/Tora-${tag}-macos.zip.sha256" \
             "dist/Tora-${tag}-macos.dmg" \

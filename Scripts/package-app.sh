@@ -12,6 +12,10 @@ resources="$contents/Resources"
 frameworks="$contents/Frameworks"
 entitlements="$root/BuildSupport/Tora.entitlements"
 minimum_macos="${TORA_MINIMUM_MACOS:-14.0}"
+bundle_version="${TORA_BUNDLE_VERSION:-${version#v}}"
+if [[ ! "$bundle_version" =~ ^[0-9]+(\.[0-9]+){0,2}$ ]]; then
+  bundle_version="0.0.0"
+fi
 
 rm -rf "$app"
 mkdir -p "$macos" "$resources" "$frameworks"
@@ -73,8 +77,8 @@ cat > "$contents/Info.plist" <<PLIST
   <key>CFBundleName</key><string>Tora</string>
   <key>CFBundleDisplayName</key><string>Tora</string>
   <key>CFBundlePackageType</key><string>APPL</string>
-  <key>CFBundleShortVersionString</key><string>${version#v}</string>
-  <key>CFBundleVersion</key><string>${version#v}</string>
+  <key>CFBundleShortVersionString</key><string>$bundle_version</string>
+  <key>CFBundleVersion</key><string>$bundle_version</string>
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>

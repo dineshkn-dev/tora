@@ -9,10 +9,16 @@ import ToraUI
 struct ToraApp: App {
     @StateObject private var appState = AppState()
     private let updaterController = SPUStandardUpdaterController(
-        startingUpdater: true,
+        startingUpdater: Self.canStartUpdater,
         updaterDelegate: nil,
         userDriverDelegate: nil
     )
+
+    private static var canStartUpdater: Bool {
+        Bundle.main.bundleURL.pathExtension == "app"
+            && Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") is String
+            && Bundle.main.object(forInfoDictionaryKey: "SUPublicEDKey") is String
+    }
 
     init() {
         NSApplication.shared.setActivationPolicy(.regular)

@@ -3,15 +3,18 @@ import ToraCore
 
 public struct MetadataStore: TorrentMetadataStoring, Sendable {
     private let fileURL: URL
+    private let maxFileSizeBytes: Int
 
-    public init(directory: URL) {
+    public init(directory: URL, maxFileSizeBytes: Int = 1024 * 1024) {
         self.fileURL = directory.appendingPathComponent("torrents", isDirectory: false).appendingPathExtension("json")
+        self.maxFileSizeBytes = maxFileSizeBytes
     }
 
     public func load() async throws -> [TorrentRecord] {
         guard FileManager.default.fileExists(atPath: fileURL.path) else {
             return []
         }
+        try validateFileSize()
         let data = try Data(contentsOf: fileURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -37,5 +40,12 @@ public struct MetadataStore: TorrentMetadataStoring, Sendable {
         var records = try await load()
         records.removeAll { $0.id == id }
         try await save(records)
+    }
+
+    private func validateFileSize() throws {
+        let values = try fileURL.resourceValues(forKeys: [.fileSizeKey])
+        guard let fileSize = values.fileSize, fileSize <= maxFileSizeBytes else {
+            throw PersistenceStoreError.fileTooLarge
+        }
     }
 }

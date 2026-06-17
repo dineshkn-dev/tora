@@ -17,17 +17,39 @@ public struct DownloadPathPolicy: Sendable {
         }
 
         let standardizedURL = url.standardizedFileURL
-        if isSymbolicLink(standardizedURL) {
-            throw DownloadPathPolicyError.symbolicLink
-        }
 
-        guard let allowedRoot else { return }
+        guard let allowedRoot else {
+            if isSymbolicLink(standardizedURL) {
+                throw DownloadPathPolicyError.symbolicLink
+            }
+            return
+        }
 
         let rootPath = allowedRoot.path.hasSuffix("/") ? allowedRoot.path : allowedRoot.path + "/"
         let candidate = standardizedURL.path
 
         guard candidate == allowedRoot.path || candidate.hasPrefix(rootPath) else {
             throw DownloadPathPolicyError.outsideAllowedRoot
+        }
+
+        try rejectSymbolicLinkComponents(from: allowedRoot, to: standardizedURL)
+    }
+
+    private func rejectSymbolicLinkComponents(from root: URL, to candidate: URL) throws {
+        var current = root
+        if isSymbolicLink(current) {
+            throw DownloadPathPolicyError.symbolicLink
+        }
+
+        let rootComponents = root.standardizedFileURL.pathComponents
+        let candidateComponents = candidate.standardizedFileURL.pathComponents
+        guard candidateComponents.count >= rootComponents.count else { return }
+
+        for component in candidateComponents.dropFirst(rootComponents.count) {
+            current.appendPathComponent(component)
+            if isSymbolicLink(current) {
+                throw DownloadPathPolicyError.symbolicLink
+            }
         }
     }
 

@@ -33,4 +33,19 @@ final class SettingsStoreTests: XCTestCase {
         let loaded = try store.load()
         XCTAssertEqual(loaded, settings)
     }
+
+    func testRejectsOversizedSettingsFile() async throws {
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let fileURL = directory.appendingPathComponent("settings").appendingPathExtension("json")
+        try Data(repeating: 0x20, count: 128).write(to: fileURL)
+        let store = SettingsStore(directory: directory, maxFileSizeBytes: 16)
+
+        XCTAssertThrowsError(try store.load()) { error in
+            XCTAssertEqual(error as? PersistenceStoreError, .fileTooLarge)
+        }
+    }
 }

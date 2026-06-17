@@ -74,9 +74,13 @@ public enum TorrentPathValidator {
             throw TorrentPathValidationError.escapesDownloadDirectory
         }
 
+        if (try? FileManager.default.destinationOfSymbolicLink(atPath: root.path)) != nil {
+            throw TorrentPathValidationError.symbolicLinkComponent
+        }
+
         var current = root
-        for component in components.dropLast() {
-            current.appendPathComponent(component, isDirectory: true)
+        for component in components {
+            current.appendPathComponent(component)
             if (try? FileManager.default.destinationOfSymbolicLink(atPath: current.path)) != nil {
                 throw TorrentPathValidationError.symbolicLinkComponent
             }

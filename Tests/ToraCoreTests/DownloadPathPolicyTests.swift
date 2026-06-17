@@ -25,4 +25,24 @@ final class DownloadPathPolicyTests: XCTestCase {
 
         XCTAssertThrowsError(try policy.validateDownloadDirectory(link))
     }
+
+    func testRejectsIntermediateSymlinkDownloadDirectory() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let target = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let link = temporaryRoot.appendingPathComponent("link", isDirectory: true)
+        let candidate = link.appendingPathComponent("nested", isDirectory: true)
+        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: target, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        defer {
+            try? FileManager.default.removeItem(at: temporaryRoot)
+            try? FileManager.default.removeItem(at: target)
+        }
+
+        let policy = DownloadPathPolicy(allowedRoot: temporaryRoot)
+
+        XCTAssertThrowsError(try policy.validateDownloadDirectory(candidate))
+    }
 }

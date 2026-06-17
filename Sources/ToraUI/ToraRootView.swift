@@ -1905,8 +1905,8 @@ public struct AddTorrentView: View {
             isFetchingMetadata = true
             defer { isFetchingMetadata = false }
             if !uiState.settings.enableDHT {
-                uiState.settings.enableDHT = true
-                await uiState.persistSettings()
+                errorMessage = TorrentServiceError.dhtRequiredForMagnetMetadata.localizedDescription
+                return
             }
             let id: TorrentID
             if let metadataTorrentID {

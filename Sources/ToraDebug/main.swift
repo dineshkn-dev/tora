@@ -64,6 +64,7 @@ struct ToraDebug {
 
         return try TorrentService(
             settings: settings,
+            pathPolicy: DownloadPathPolicy(allowedRoot: downloads),
             deletionPolicy: DeletionPolicy(allowedRoot: downloads),
             resumeDataDirectory: root.appendingPathComponent("ResumeData", isDirectory: true),
             sessionStateURL: root.appendingPathComponent("Session/session_state", isDirectory: false)

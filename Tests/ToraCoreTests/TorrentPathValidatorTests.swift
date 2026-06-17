@@ -34,4 +34,21 @@ final class TorrentPathValidatorTests: XCTestCase {
     func testRejectsControlCharacters() {
         XCTAssertThrowsError(try TorrentPathValidator.validate("folder/file\u{0000}.txt", inside: downloadDirectory))
     }
+
+    func testRejectsExistingSymlinkPathComponent() throws {
+        let temporaryRoot = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let outside = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let link = temporaryRoot.appendingPathComponent("linked", isDirectory: true)
+        try FileManager.default.createDirectory(at: temporaryRoot, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: outside)
+        defer {
+            try? FileManager.default.removeItem(at: temporaryRoot)
+            try? FileManager.default.removeItem(at: outside)
+        }
+
+        XCTAssertThrowsError(try TorrentPathValidator.validate("linked/file.txt", inside: temporaryRoot))
+    }
 }

@@ -10,6 +10,7 @@ public enum TorrentPathValidationError: LocalizedError, Equatable {
     case windowsDrivePath
     case containsControlCharacter
     case escapesDownloadDirectory
+    case symbolicLinkComponent
 
     public var errorDescription: String? {
         switch self {
@@ -22,6 +23,7 @@ public enum TorrentPathValidationError: LocalizedError, Equatable {
         case .windowsDrivePath: "Torrent path must not contain a Windows drive prefix."
         case .containsControlCharacter: "Torrent path must not contain control characters."
         case .escapesDownloadDirectory: "Torrent path escapes the selected download directory."
+        case .symbolicLinkComponent: "Torrent path must not pass through a symbolic link."
         }
     }
 }
@@ -70,6 +72,14 @@ public enum TorrentPathValidator {
 
         guard candidatePath == root.path || candidatePath.hasPrefix(rootPath) else {
             throw TorrentPathValidationError.escapesDownloadDirectory
+        }
+
+        var current = root
+        for component in components.dropLast() {
+            current.appendPathComponent(component, isDirectory: true)
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: current.path)) != nil {
+                throw TorrentPathValidationError.symbolicLinkComponent
+            }
         }
     }
 }

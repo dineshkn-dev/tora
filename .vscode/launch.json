@@ -1,0 +1,44 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:tora}",
+            "name": "Debug Tora",
+            "target": "Tora",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug Tora"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:tora}",
+            "name": "Release Tora",
+            "target": "Tora",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release Tora"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:tora}",
+            "name": "Debug ToraDebug",
+            "target": "ToraDebug",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug ToraDebug"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:tora}",
+            "name": "Release ToraDebug",
+            "target": "ToraDebug",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release ToraDebug"
+        }
+    ]
+}

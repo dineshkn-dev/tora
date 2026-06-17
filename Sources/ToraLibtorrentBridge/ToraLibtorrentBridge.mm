@@ -418,6 +418,16 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     }
 
     params.save_path = request.downloadDirectory.path.UTF8String;
+    if (!request.fetchMetadataOnly && params.ti != nullptr) {
+        params.file_priorities.assign(static_cast<size_t>(params.ti->num_files()), libtorrent::dont_download);
+        for (NSUInteger idx = request.selectedFileIndexes.firstIndex;
+             idx != NSNotFound;
+             idx = [request.selectedFileIndexes indexGreaterThanIndex:idx]) {
+            if (idx < params.file_priorities.size()) {
+                params.file_priorities[idx] = libtorrent::default_priority;
+            }
+        }
+    }
     if (!request.sessionConfig.enablePeerExchange) {
         params.flags |= libtorrent::torrent_flags::disable_pex;
     }

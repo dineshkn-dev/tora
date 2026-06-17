@@ -47,6 +47,7 @@ final class AppState: ObservableObject {
         } else {
             self.torrentService = (try? TorrentService(
                 settings: settings,
+                pathPolicy: DownloadPathPolicy(allowedRoot: directories.defaultDownloadDirectory),
                 metadataStore: metadataStore,
                 deletionPolicy: DeletionPolicy(allowedRoot: directories.defaultDownloadDirectory),
                 resumeDataDirectory: directories.resumeData,

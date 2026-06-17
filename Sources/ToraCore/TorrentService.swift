@@ -64,6 +64,12 @@ public actor TorrentService: TorrentServiceProtocol {
     public func start() async throws {
         guard let records = try await metadataStore?.load() else { return }
         for record in records {
+            do {
+                try pathPolicy.validateDownloadDirectory(record.downloadDirectory)
+            } catch {
+                try? await metadataStore?.remove(id: record.id)
+                continue
+            }
             let pending = PendingTorrent(
                 name: record.name,
                 infoHash: record.id.rawValue,
@@ -74,9 +80,9 @@ public actor TorrentService: TorrentServiceProtocol {
             request.pendingTorrent = pending.bridgeModel()
             request.sessionConfig = settings.bridgeConfig(sessionStateURL: sessionStateURL)
             request.downloadDirectory = record.downloadDirectory
-        request.selectedFileIndexes = IndexSet(record.selectedFileIndexes)
-        request.startPaused = true
-        request.fetchMetadataOnly = false
+            request.selectedFileIndexes = IndexSet(record.selectedFileIndexes)
+            request.startPaused = true
+            request.fetchMetadataOnly = false
             if let resumeDataDirectory {
                 request.resumeDataURL = resumeDataDirectory
                     .appendingPathComponent(record.id.rawValue, isDirectory: false)
@@ -117,6 +123,7 @@ public actor TorrentService: TorrentServiceProtocol {
     }
 
     public func addTorrent(_ pending: PendingTorrent, options: AddTorrentOptions) async throws -> TorrentID {
+        try pathPolicy.validateDownloadDirectory(options.downloadDirectory)
         try inputValidator.validate(pending, options: options)
         let request = TORAddTorrentRequest()
         request.pendingTorrent = pending.bridgeModel()
@@ -166,6 +173,14 @@ public actor TorrentService: TorrentServiceProtocol {
         guard let record = records.first(where: { $0.id == id }) else {
             throw TorrentServiceError.missingMetadataForSelection
         }
+        let pending = try client.metadata(forTorrent: id.rawValue).coreModel(source: record.source)
+        let options = AddTorrentOptions(
+            downloadDirectory: record.downloadDirectory,
+            selectedFileIndexes: selectedFileIndexes,
+            startPaused: startPaused
+        )
+        try pathPolicy.validateDownloadDirectory(record.downloadDirectory)
+        try inputValidator.validate(pending, options: options)
         try client.setSelectedFileIndexes(
             IndexSet(selectedFileIndexes),
             forTorrent: id.rawValue,

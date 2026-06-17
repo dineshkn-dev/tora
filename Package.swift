@@ -36,10 +36,18 @@ let package = Package(
         .library(name: "ToraPersistence", targets: ["ToraPersistence"]),
         .library(name: "ToraLibtorrentBridge", targets: ["ToraLibtorrentBridge"])
     ],
+    dependencies: [
+        .package(url: "https://github.com/sparkle-project/Sparkle", from: "2.9.3")
+    ],
     targets: [
         .executableTarget(
             name: "ToraApp",
-            dependencies: ["ToraUI", "ToraCore", "ToraPersistence"],
+            dependencies: [
+                "ToraUI",
+                "ToraCore",
+                "ToraPersistence",
+                .product(name: "Sparkle", package: "Sparkle")
+            ],
             exclude: ["AppIcon.icns"]
         ),
         .executableTarget(

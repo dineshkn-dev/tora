@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import Sparkle
 import ToraCore
 import ToraPersistence
 import ToraUI
@@ -7,6 +8,11 @@ import ToraUI
 @main
 struct ToraApp: App {
     @StateObject private var appState = AppState()
+    private let updaterController = SPUStandardUpdaterController(
+        startingUpdater: true,
+        updaterDelegate: nil,
+        userDriverDelegate: nil
+    )
 
     init() {
         NSApplication.shared.setActivationPolicy(.regular)
@@ -21,10 +27,39 @@ struct ToraApp: App {
                     await appState.start()
                 }
         }
+        .commands {
+            CommandGroup(after: .appInfo) {
+                CheckForUpdatesView(updater: updaterController.updater)
+            }
+        }
         Settings {
             SettingsView()
                 .environmentObject(appState.uiState)
         }
+    }
+}
+
+private struct CheckForUpdatesView: View {
+    @ObservedObject private var viewModel: CheckForUpdatesViewModel
+    private let updater: SPUUpdater
+
+    init(updater: SPUUpdater) {
+        self.updater = updater
+        self.viewModel = CheckForUpdatesViewModel(updater: updater)
+    }
+
+    var body: some View {
+        Button("Check for Updates...", action: updater.checkForUpdates)
+            .disabled(!viewModel.canCheckForUpdates)
+    }
+}
+
+private final class CheckForUpdatesViewModel: ObservableObject {
+    @Published var canCheckForUpdates = false
+
+    init(updater: SPUUpdater) {
+        updater.publisher(for: \.canCheckForUpdates)
+            .assign(to: &$canCheckForUpdates)
     }
 }
 

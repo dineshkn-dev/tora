@@ -25,6 +25,13 @@ fi
 MACOSX_DEPLOYMENT_TARGET="$minimum_macos" TORA_LIBTORRENT_PREFIX="$TORA_LIBTORRENT_PREFIX" swift build -c "$configuration"
 cp "$root/.build/$configuration/Tora" "$macos/Tora"
 cp "$root/Sources/ToraApp/AppIcon.icns" "$resources/AppIcon.icns"
+sparkle_framework="$root/.build/$configuration/Sparkle.framework"
+if [[ -d "$sparkle_framework" ]]; then
+  ditto "$sparkle_framework" "$frameworks/Sparkle.framework"
+else
+  echo "Missing Sparkle.framework in SwiftPM build output." >&2
+  exit 1
+fi
 
 rewrite_dependencies() {
   local binary="$1"
@@ -72,17 +79,26 @@ cat > "$contents/Info.plist" <<PLIST
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSDownloadsFolderUsageDescription</key><string>Tora stores downloaded torrent payloads in the Tora downloads folder.</string>
+  <key>SUFeedURL</key><string>https://github.com/dineshkn-dev/tora/releases/latest/download/appcast.xml</string>
+  <key>SUPublicEDKey</key><string>IGuTVqfGXgXeYu/enWFCtCO4EYxPlHUpraLUCqA+m9w=</string>
+  <key>SUEnableAutomaticChecks</key><true/>
+  <key>SUAllowsAutomaticUpdates</key><true/>
+  <key>SUAutomaticallyUpdate</key><true/>
+  <key>SUEnableInstallerLauncherService</key><true/>
+  <key>SUVerifyUpdateBeforeExtraction</key><true/>
 </dict>
 </plist>
 PLIST
 
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+  codesign --force --deep --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$frameworks/Sparkle.framework"
   find "$frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
     codesign --force --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$dylib"
   done
   codesign --force --timestamp --options runtime --entitlements "$entitlements" --sign "$DEVELOPER_ID_APPLICATION" "$app"
 else
   echo "Ad-hoc signing frameworks for local run..."
+  codesign --force --deep -s - "$frameworks/Sparkle.framework"
   find "$frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
     codesign --force -s - "$dylib"
   done

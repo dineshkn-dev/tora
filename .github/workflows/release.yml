@@ -32,6 +32,30 @@ jobs:
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
           MACOSX_DEPLOYMENT_TARGET=14.0 TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" Scripts/package-app.sh "$tag"
+      - name: Generate Sparkle appcast
+        timeout-minutes: 3
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          tag="${{ inputs.tag || github.ref_name }}"
+          if [[ -z "$SPARKLE_PRIVATE_KEY" ]]; then
+            echo "SPARKLE_PRIVATE_KEY secret is required to sign appcast.xml." >&2
+            exit 1
+          fi
+          appcast_dir="dist/appcast"
+          mkdir -p "$appcast_dir"
+          cp "dist/Tora-${tag}-macos.dmg" "$appcast_dir/"
+          notes_file=".github/release-notes/${tag}.md"
+          if [[ -f "$notes_file" ]]; then
+            cp "$notes_file" "$appcast_dir/Tora-${tag}-macos.md"
+          fi
+          echo "$SPARKLE_PRIVATE_KEY" | \
+            .build/artifacts/sparkle/Sparkle/bin/generate_appcast \
+              --ed-key-file - \
+              --download-url-prefix "https://github.com/dineshkn-dev/tora/releases/download/${tag}/" \
+              --embed-release-notes \
+              "$appcast_dir"
+          cp "$appcast_dir/appcast.xml" "dist/appcast.xml"
       - name: Create GitHub Release
         timeout-minutes: 3
         env:
@@ -46,6 +70,7 @@ jobs:
           gh release create "$tag" \
             --title "Tora ${tag}" \
             "${notes_arg[@]}" \
+            "dist/appcast.xml" \
             "dist/Tora-${tag}-macos.zip" \
             "dist/Tora-${tag}-macos.zip.sha256" \
             "dist/Tora-${tag}-macos.dmg" \

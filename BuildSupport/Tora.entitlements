@@ -12,5 +12,10 @@
   <true/>
   <key>com.apple.security.files.user-selected.read-write</key>
   <true/>
+  <key>com.apple.security.temporary-exception.mach-lookup.global-name</key>
+  <array>
+    <string>dev.dineshkn.tora-spks</string>
+    <string>dev.dineshkn.tora-spki</string>
+  </array>
 </dict>
 </plist>

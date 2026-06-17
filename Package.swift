@@ -79,5 +79,6 @@ let package = Package(
                 .copy("../Fixtures")
             ]
         )
-    ]
+    ],
+    cxxLanguageStandard: .cxx17
 )

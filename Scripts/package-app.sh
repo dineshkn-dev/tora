@@ -28,6 +28,7 @@ fi
 
 MACOSX_DEPLOYMENT_TARGET="$minimum_macos" TORA_LIBTORRENT_PREFIX="$TORA_LIBTORRENT_PREFIX" swift build -c "$configuration"
 cp "$root/.build/$configuration/Tora" "$macos/Tora"
+install_name_tool -add_rpath "@executable_path/../Frameworks" "$macos/Tora" || true
 cp "$root/Sources/ToraApp/AppIcon.icns" "$resources/AppIcon.icns"
 sparkle_framework="$root/.build/$configuration/Sparkle.framework"
 if [[ -d "$sparkle_framework" ]]; then

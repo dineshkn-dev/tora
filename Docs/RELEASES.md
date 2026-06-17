@@ -14,7 +14,7 @@ The script verifies a clean working tree, runs tests, creates an annotated tag, 
 
 The `Release` workflow builds a `.app` bundle, vendors Homebrew dylib dependencies into `Contents/Frameworks`, creates a zip artifact, writes a SHA-256 checksum, and creates a GitHub Release with generated notes.
 
-The workflow is intentionally small and timeout-bounded. It does not notarize yet and does not build a DMG until app bundle signing is added.
+The workflow builds libtorrent from source for Tora's minimum macOS target and packages a sandboxed app. Release packaging fails if any bundled Mach-O requires a newer macOS than Tora supports or if the app is missing required sandbox/network/file entitlements.
 
 ## Notarization
 

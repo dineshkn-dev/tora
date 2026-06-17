@@ -26,12 +26,14 @@ jobs:
           ref: ${{ inputs.tag || github.ref }}
       - name: Install libtorrent
         timeout-minutes: 8
-        run: HOMEBREW_NO_AUTO_UPDATE=1 brew install libtorrent-rasterbar
+        run: |
+          export MACOSX_DEPLOYMENT_TARGET=14.0
+          HOMEBREW_NO_AUTO_UPDATE=1 brew install --build-from-source libtorrent-rasterbar
       - name: Package app
         timeout-minutes: 12
         run: |
           tag="${{ inputs.tag || github.ref_name }}"
-          TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" Scripts/package-app.sh "$tag"
+          MACOSX_DEPLOYMENT_TARGET=14.0 TORA_LIBTORRENT_PREFIX="$(brew --prefix libtorrent-rasterbar)" Scripts/package-app.sh "$tag"
       - name: Create GitHub Release
         timeout-minutes: 3
         env:

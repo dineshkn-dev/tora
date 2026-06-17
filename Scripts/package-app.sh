@@ -10,6 +10,8 @@ contents="$app/Contents"
 macos="$contents/MacOS"
 resources="$contents/Resources"
 frameworks="$contents/Frameworks"
+entitlements="$root/BuildSupport/Tora.entitlements"
+minimum_macos="${TORA_MINIMUM_MACOS:-14.0}"
 
 rm -rf "$app"
 mkdir -p "$macos" "$resources" "$frameworks"
@@ -20,7 +22,7 @@ if [[ -z "$TORA_LIBTORRENT_PREFIX" ]]; then
   exit 2
 fi
 
-TORA_LIBTORRENT_PREFIX="$TORA_LIBTORRENT_PREFIX" swift build -c "$configuration"
+MACOSX_DEPLOYMENT_TARGET="$minimum_macos" TORA_LIBTORRENT_PREFIX="$TORA_LIBTORRENT_PREFIX" swift build -c "$configuration"
 cp "$root/.build/$configuration/Tora" "$macos/Tora"
 cp "$root/Sources/ToraApp/AppIcon.icns" "$resources/AppIcon.icns"
 
@@ -69,6 +71,7 @@ cat > "$contents/Info.plist" <<PLIST
   <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>LSMinimumSystemVersion</key><string>14.0</string>
   <key>NSHighResolutionCapable</key><true/>
+  <key>NSDownloadsFolderUsageDescription</key><string>Tora stores downloaded torrent payloads in the Tora downloads folder.</string>
 </dict>
 </plist>
 PLIST
@@ -77,15 +80,17 @@ if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
   find "$frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
     codesign --force --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$dylib"
   done
-  codesign --force --timestamp --options runtime --sign "$DEVELOPER_ID_APPLICATION" "$app"
+  codesign --force --timestamp --options runtime --entitlements "$entitlements" --sign "$DEVELOPER_ID_APPLICATION" "$app"
 else
   echo "Ad-hoc signing frameworks for local run..."
   find "$frameworks" -type f -name '*.dylib' -print0 | while IFS= read -r -d '' dylib; do
     codesign --force -s - "$dylib"
   done
   echo "Ad-hoc signing app bundle..."
-  codesign --force -s - "$app"
+  codesign --force --entitlements "$entitlements" -s - "$app"
 fi
+
+Scripts/verify-release-binaries.sh "$app"
 
 mkdir -p "$dist"
 (cd "$dist" && zip -qry "Tora-${version}-macos.zip" "Tora.app")

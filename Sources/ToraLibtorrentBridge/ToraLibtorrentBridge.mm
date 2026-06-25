@@ -351,12 +351,16 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
     bool loadedResumeData = false;
 
     if (request.resumeDataURL != nil && [[NSFileManager defaultManager] fileExistsAtPath:request.resumeDataURL.path]) {
-        NSData *data = [NSData dataWithContentsOfURL:request.resumeDataURL options:0 error:nil];
-        if (data != nil) {
-            auto bytes = static_cast<char const *>(data.bytes);
-            params = libtorrent::read_resume_data(libtorrent::span<char const>(bytes, data.length), ec);
-            loadedResumeData = !ec;
-            ec.clear();
+        NSDictionary *attributes = [[NSFileManager defaultManager] attributesOfItemAtPath:request.resumeDataURL.path error:nil];
+        NSNumber *fileSize = attributes[NSFileSize];
+        if (fileSize != nil && fileSize.longLongValue <= 5 * 1024 * 1024) {
+            NSData *data = [NSData dataWithContentsOfURL:request.resumeDataURL options:0 error:nil];
+            if (data != nil) {
+                auto bytes = static_cast<char const *>(data.bytes);
+                params = libtorrent::read_resume_data(libtorrent::span<char const>(bytes, data.length), ec);
+                loadedResumeData = !ec;
+                ec.clear();
+            }
         }
     }
 
@@ -731,7 +735,7 @@ static NSString *TORStateString(libtorrent::torrent_status::state_t state) {
         bridgeStatus.totalDone = status.total_wanted_done;
         bridgeStatus.totalUploaded = status.all_time_upload;
         bridgeStatus.seedingSeconds = status.seeding_duration.count();
-        bridgeStatus.hasMetadata = handle.torrent_file() != nullptr;
+        bridgeStatus.hasMetadata = status.has_metadata;
         [statuses addObject:bridgeStatus];
         ++it;
     }

@@ -112,6 +112,20 @@ public actor TorrentService: TorrentServiceProtocol {
     }
 
     public func inspectTorrentFile(_ url: URL) async throws -> PendingTorrent {
+        do {
+            let values = try url.resourceValues(forKeys: [.fileSizeKey])
+            guard let fileSize = values.fileSize else {
+                throw TorrentServiceError.invalidTorrentFile
+            }
+            guard fileSize <= 10 * 1024 * 1024 else {
+                throw TorrentServiceError.torrentFileTooLarge
+            }
+        } catch let error as TorrentServiceError {
+            throw error
+        } catch {
+            throw TorrentServiceError.invalidTorrentFile
+        }
+
         let pending = try client.inspectTorrentFile(at: url)
         return pending.coreModel(source: TorrentSource.torrentFile(url))
     }
@@ -296,6 +310,8 @@ public enum TorrentServiceError: LocalizedError, Equatable {
     case missingMetadataForDeletion
     case missingMetadataForSelection
     case dhtRequiredForMagnetMetadata
+    case invalidTorrentFile
+    case torrentFileTooLarge
 
     public var errorDescription: String? {
         switch self {
@@ -309,6 +325,10 @@ public enum TorrentServiceError: LocalizedError, Equatable {
             "Cannot start this torrent because its saved metadata record is missing."
         case .dhtRequiredForMagnetMetadata:
             "DHT is disabled. Enable DHT to fetch trackerless magnet metadata."
+        case .invalidTorrentFile:
+            "The torrent file is invalid or cannot be read."
+        case .torrentFileTooLarge:
+            "The torrent file is too large to load safely (limit is 10 MB)."
         }
     }
 }

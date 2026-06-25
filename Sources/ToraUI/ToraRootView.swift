@@ -2358,10 +2358,19 @@ public struct SettingsView: View {
     }
 }
 
+@MainActor
+private let sharedByteCountFormatter: ByteCountFormatter = {
+    let formatter = ByteCountFormatter()
+    formatter.countStyle = .file
+    return formatter
+}()
+
+@MainActor
 private func bytes(_ value: Int64) -> String {
-    ByteCountFormatter.string(fromByteCount: value, countStyle: .file)
+    sharedByteCountFormatter.string(fromByteCount: value)
 }
 
+@MainActor
 private func rate(_ value: Int64) -> String {
     "\(bytes(value))/s"
 }

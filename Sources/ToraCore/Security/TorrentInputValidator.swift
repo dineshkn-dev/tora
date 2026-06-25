@@ -22,9 +22,10 @@ public struct TorrentInputValidator: Sendable {
             throw TorrentInputValidationError.noFilesSelected
         }
 
+        let cache = TorrentPathValidationCache()
         var normalizedPaths = Set<String>()
         for file in selectedFiles {
-            try TorrentPathValidator.validate(file.path, inside: options.downloadDirectory)
+            try TorrentPathValidator.validate(file.path, inside: options.downloadDirectory, cache: cache)
 
             let normalized = Self.normalizedCollisionKey(file.path)
             guard normalizedPaths.insert(normalized).inserted else {

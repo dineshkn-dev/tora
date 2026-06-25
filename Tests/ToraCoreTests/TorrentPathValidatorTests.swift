@@ -68,4 +68,21 @@ final class TorrentPathValidatorTests: XCTestCase {
 
         XCTAssertThrowsError(try TorrentPathValidator.validate("file.txt", inside: temporaryRoot))
     }
+
+    func testPathValidationUsesCache() throws {
+        let cache = TorrentPathValidationCache()
+        let path = "folder/subfolder/file.txt"
+
+        XCTAssertNoThrow(try TorrentPathValidator.validate(path, inside: downloadDirectory, cache: cache))
+
+        let rootPath = downloadDirectory.standardizedFileURL.path
+        let parent1 = downloadDirectory.standardizedFileURL.appendingPathComponent("folder").path
+        let parent2 = downloadDirectory.standardizedFileURL.appendingPathComponent("folder/subfolder").path
+        let fullPath = downloadDirectory.standardizedFileURL.appendingPathComponent(path).path
+
+        XCTAssertTrue(cache.safePaths.contains(rootPath))
+        XCTAssertTrue(cache.safePaths.contains(parent1))
+        XCTAssertTrue(cache.safePaths.contains(parent2))
+        XCTAssertTrue(cache.safePaths.contains(fullPath))
+    }
 }

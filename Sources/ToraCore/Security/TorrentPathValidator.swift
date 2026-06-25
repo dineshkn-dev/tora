@@ -28,8 +28,31 @@ public enum TorrentPathValidationError: LocalizedError, Equatable {
     }
 }
 
+public final class TorrentPathValidationCache: @unchecked Sendable {
+    var safePaths = Set<String>()
+    private let lock = NSLock()
+
+    public init() {}
+
+    fileprivate func isSafe(_ path: String) -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return safePaths.contains(path)
+    }
+
+    fileprivate func markSafe(_ path: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        safePaths.insert(path)
+    }
+}
+
 public enum TorrentPathValidator {
-    public static func validate(_ torrentPath: String, inside downloadDirectory: URL) throws {
+    public static func validate(
+        _ torrentPath: String,
+        inside downloadDirectory: URL,
+        cache: TorrentPathValidationCache? = nil
+    ) throws {
         let normalizedPath = torrentPath.replacingOccurrences(of: "\\", with: "/")
 
         guard !normalizedPath.isEmpty else {
@@ -74,16 +97,27 @@ public enum TorrentPathValidator {
             throw TorrentPathValidationError.escapesDownloadDirectory
         }
 
-        if (try? FileManager.default.destinationOfSymbolicLink(atPath: root.path)) != nil {
-            throw TorrentPathValidationError.symbolicLinkComponent
+        let rootPathToCheck = root.path
+        if let cache = cache, cache.isSafe(rootPathToCheck) {
+            // Already validated root.path
+        } else {
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: rootPathToCheck)) != nil {
+                throw TorrentPathValidationError.symbolicLinkComponent
+            }
+            cache?.markSafe(rootPathToCheck)
         }
 
         var current = root
         for component in components {
             current.appendPathComponent(component)
-            if (try? FileManager.default.destinationOfSymbolicLink(atPath: current.path)) != nil {
+            let pathToCheck = current.path
+            if let cache = cache, cache.isSafe(pathToCheck) {
+                continue
+            }
+            if (try? FileManager.default.destinationOfSymbolicLink(atPath: pathToCheck)) != nil {
                 throw TorrentPathValidationError.symbolicLinkComponent
             }
+            cache?.markSafe(pathToCheck)
         }
     }
 }
